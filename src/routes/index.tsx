@@ -1,24 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
-import CallUApp from "@/components/callu-app";
+import SpeakPractice from "@/components/speak-practice";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Call u — Free calls to anyone, anywhere" },
+      { title: "Call u — Live English speaking practice calls" },
       {
         name: "description",
         content:
-          "Call u is a free calling app: crystal-clear voice calls to 60+ countries with no paywall and no minutes to track.",
+          "Call u pairs you instantly with another learner for a free, direct voice call so you can practice speaking English out loud.",
       },
-      { property: "og:title", content: "Call u — Free calls to anyone, anywhere" },
+      { property: "og:title", content: "Call u — Live English speaking practice calls" },
       {
         property: "og:description",
         content:
-          "Crystal-clear free calls to 60+ countries, no paywall, no minutes to track.",
+          "Get matched with a real partner in seconds and practice spoken English on a free peer-to-peer voice call.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: CallUApp,
+  component: SpeakPractice,
 });
