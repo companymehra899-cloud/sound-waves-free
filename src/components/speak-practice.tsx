@@ -58,11 +58,22 @@ export default function SpeakPractice() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
   const remoteReadyRef = useRef(false);
+  const endCallRef = useRef<((message?: string) => Promise<void>) | null>(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("callu_nickname");
     if (saved) setNickname(saved);
   }, []);
+
+  useEffect(() => {
+    if (phase !== "connecting") return;
+    const timeout = setTimeout(() => {
+      void endCallRef.current?.(
+        "Couldn't connect to your partner — this can happen on strict Wi-Fi or mobile networks. Please try again.",
+      );
+    }, 30000);
+    return () => clearTimeout(timeout);
+  }, [phase]);
 
   useEffect(() => {
     if (phase !== "live") return;
@@ -114,6 +125,10 @@ export default function SpeakPractice() {
     },
     [cleanup, phase],
   );
+
+  useEffect(() => {
+    endCallRef.current = endCall;
+  }, [endCall]);
 
   const startWebRTC = useCallback(
     async (info: MatchInfo) => {
@@ -170,7 +185,6 @@ export default function SpeakPractice() {
 
       channel.on("broadcast", { event: "signal" }, async ({ payload }) => {
         const data = payload as Signal;
-        console.log("[call] signal in", data.kind, info.role);
         try {
           if (data.kind === "ready") {
             if (info.role === "caller") {
