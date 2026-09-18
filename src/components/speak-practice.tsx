@@ -170,11 +170,18 @@ export default function SpeakPractice() {
 
       channel.on("broadcast", { event: "signal" }, async ({ payload }) => {
         const data = payload as Signal;
+        console.log("[call] signal in", data.kind, info.role);
         try {
           if (data.kind === "ready") {
-            if (info.role === "caller" && !remoteReadyRef.current) {
+            if (info.role === "caller") {
+              if (!remoteReadyRef.current) {
+                remoteReadyRef.current = true;
+                await makeOffer();
+              }
+            } else if (!remoteReadyRef.current) {
+              // Let the caller know we are here, in case our first ping was early.
               remoteReadyRef.current = true;
-              await makeOffer();
+              void send({ kind: "ready" });
             }
           } else if (data.kind === "offer" && info.role === "callee") {
             await pc.setRemoteDescription(new RTCSessionDescription(data.sdp!));
