@@ -24,11 +24,17 @@ export const CONTACTS: Contact[] = [
   { id: "rosa", name: "Rosa Marín", label: "Mobile", phone: "+34 91 555 7761", initials: "R", color: "rose" },
 ];
 
+const byId = (id: string): Contact => {
+  const found = CONTACTS.find((c) => c.id === id);
+  if (!found) throw new Error(`Unknown contact ${id}`);
+  return found;
+};
+
 export const INITIAL_CALLS: CallRecord[] = [
-  { id: "c1", contact: CONTACTS[0], direction: "incoming", when: "Today · 09:14", duration: "00:14" },
-  { id: "c2", contact: CONTACTS[1], direction: "outgoing", when: "Yesterday", duration: "03:42" },
-  { id: "c3", contact: CONTACTS[2], direction: "missed", when: "Mon" },
-  { id: "c4", contact: CONTACTS[3], direction: "incoming", when: "Sun · 18:02", duration: "12:05" },
+  { id: "c1", contact: byId("maya"), direction: "incoming", when: "Today · 09:14", duration: "00:14" },
+  { id: "c2", contact: byId("dad"), direction: "outgoing", when: "Yesterday", duration: "03:42" },
+  { id: "c3", contact: byId("sam"), direction: "missed", when: "Mon" },
+  { id: "c4", contact: byId("priya"), direction: "incoming", when: "Sun · 18:02", duration: "12:05" },
 ];
 
 export const AVATAR_STYLES: Record<Contact["color"], string> = {
