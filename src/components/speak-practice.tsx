@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Mic, MicOff, PhoneOff, Loader2, Globe2, Volume2, X } from "lucide-react";
+import {
+  Mic,
+  MicOff,
+  PhoneOff,
+  Phone,
+  Loader2,
+  Globe,
+  Volume2,
+  X,
+  PhoneIncoming,
+} from "lucide-react";
 
 type Phase = "idle" | "searching" | "connecting" | "live" | "ended";
 
@@ -23,6 +33,12 @@ type MatchInfo = {
   roomId: string;
   role: "caller" | "callee";
   partner: string;
+};
+
+type PastCall = {
+  partner: string;
+  seconds: number;
+  at: number;
 };
 
 const ICE_SERVERS: RTCConfiguration = {
@@ -49,12 +65,34 @@ const ICE_SERVERS: RTCConfiguration = {
   ],
 };
 
-function formatDuration(seconds: number) {
-  const m = Math.floor(seconds / 60)
+const AVATAR_COLORS = [
+  "bg-brand/15 text-brand",
+  "bg-coral/15 text-coral",
+  "bg-mint/15 text-mint",
+] as const;
+
+function avatarColor(name: string) {
+  let hash = 0;
+  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
+
+function formatTimer(totalSeconds: number) {
+  const m = Math.floor(totalSeconds / 60)
     .toString()
     .padStart(2, "0");
-  const s = (seconds % 60).toString().padStart(2, "0");
+  const s = (totalSeconds % 60).toString().padStart(2, "0");
   return `${m}:${s}`;
+}
+
+function formatWhen(at: number) {
+  const diff = Date.now() - at;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  return new Date(at).toLocaleDateString();
 }
 
 export default function SpeakPractice() {
@@ -62,9 +100,11 @@ export default function SpeakPractice() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [match, setMatch] = useState<MatchInfo | null>(null);
   const [muted, setMuted] = useState(false);
+  const [speaker, setSpeaker] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [pastCalls, setPastCalls] = useState<PastCall[]>([]);
 
   const queueIdRef = useRef<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -75,11 +115,29 @@ export default function SpeakPractice() {
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
   const remoteReadyRef = useRef(false);
   const endCallRef = useRef<((message?: string) => Promise<void>) | null>(null);
+  const matchRef = useRef<MatchInfo | null>(null);
+  const secondsRef = useRef(0);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("callu_nickname");
     if (saved) setNickname(saved);
+    try {
+      const history = JSON.parse(
+        window.localStorage.getItem("callu_history") ?? "[]",
+      ) as PastCall[];
+      setPastCalls(history.slice(0, 10));
+    } catch {
+      /* ignore */
+    }
   }, []);
+
+  useEffect(() => {
+    matchRef.current = match;
+  }, [match]);
+
+  useEffect(() => {
+    secondsRef.current = seconds;
+  }, [seconds]);
 
   useEffect(() => {
     if (phase !== "connecting") return;
@@ -133,8 +191,23 @@ export default function SpeakPractice() {
     async (message?: string) => {
       const wasLive = phase === "live" || phase === "connecting";
       channelRef.current?.send({ type: "broadcast", event: "signal", payload: { kind: "bye" } });
+
+      if (phase === "live" && matchRef.current) {
+        const entry: PastCall = {
+          partner: matchRef.current.partner,
+          seconds: secondsRef.current,
+          at: Date.now(),
+        };
+        setPastCalls((prev) => {
+          const next = [entry, ...prev].slice(0, 10);
+          window.localStorage.setItem("callu_history", JSON.stringify(next));
+          return next;
+        });
+      }
+
       await cleanup(true);
       setMuted(false);
+      setSpeaker(false);
       setNotice(message ?? null);
       setPhase(wasLive ? "ended" : "idle");
       if (!wasLive) setMatch(null);
@@ -322,50 +395,59 @@ export default function SpeakPractice() {
   const inCall = phase === "connecting" || phase === "live";
 
   return (
-    <main className="bg-mesh min-h-dvh px-5 py-8 font-body">
+    <main className="bg-mesh min-h-dvh font-body text-ink">
       <audio ref={audioRef} autoPlay playsInline className="hidden" />
 
-      <div className="mx-auto w-full max-w-md">
-        <header className="flex items-center gap-3">
-          <div className="grid size-11 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg">
-            <Globe2 className="size-5" />
+      <div className="mx-auto flex min-h-dvh max-w-[430px] flex-col px-5 pb-6">
+        <header className="flex items-center justify-between pt-6">
+          <div className="flex items-center gap-2">
+            <span className="grid size-9 place-items-center rounded-xl bg-brand font-display text-lg font-bold text-white shadow-sm">
+              C
+            </span>
+            <span className="font-display text-[17px] font-semibold tracking-tight">Call u</span>
           </div>
-          <div>
-            <h1 className="font-display text-xl font-bold tracking-tight">Call u</h1>
-            <p className="text-xs text-muted-foreground">English speaking practice, live</p>
-          </div>
+          <span className="flex h-10 items-center gap-1.5 rounded-full border border-ink/10 bg-white/70 px-3 text-xs font-medium text-muted-foreground">
+            <Globe className="size-3.5 text-mint" /> Free worldwide
+          </span>
         </header>
 
-        {!inCall && (
-          <section className="mt-8 animate-rise rounded-4xl border border-border bg-card/80 p-6 shadow-xl backdrop-blur">
-            <h2 className="font-display text-2xl font-bold leading-tight">
-              Talk to a real person right now
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Tap below and you'll be paired with another learner who is waiting. Voice only —
-              no sign up, no phone number.
-            </p>
+        {!inCall && phase !== "ended" && (
+          <div className="animate-rise">
+            <section className="mt-8">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+                Free voice calls
+              </p>
+              <h1 className="mt-2 font-display text-[32px] font-semibold leading-[1.05] tracking-tight">
+                Practice English. <span className="text-coral">With real people.</span>
+              </h1>
+              <p className="mt-2 max-w-[300px] text-[15px] leading-relaxed text-muted-foreground">
+                Get paired with another learner who is online right now. Voice only — no sign
+                up, no phone number.
+              </p>
+            </section>
 
-            <label className="mt-6 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Your name
-            </label>
-            <input
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              placeholder="e.g. Rahul"
-              maxLength={24}
-              className="mt-2 w-full rounded-2xl border border-input bg-background px-4 py-3 text-base outline-none focus:border-primary focus:ring-2 focus:ring-ring/30"
-            />
+            <section className="mt-7">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Your name
+              </label>
+              <input
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="e.g. Rahul"
+                maxLength={24}
+                className="mt-2 w-full rounded-2xl border border-ink/5 bg-white/85 px-4 py-3 text-[15px] shadow-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+              />
+            </section>
 
             {phase === "searching" ? (
               <div className="mt-6 space-y-3">
-                <div className="flex items-center justify-center gap-3 rounded-2xl bg-secondary px-4 py-4 text-secondary-foreground">
-                  <Loader2 className="size-5 animate-spin" />
+                <div className="flex items-center justify-center gap-3 rounded-2xl border border-ink/5 bg-white/85 px-4 py-4 shadow-sm">
+                  <Loader2 className="size-5 animate-spin text-brand" />
                   <span className="text-sm font-medium">Looking for a partner…</span>
                 </div>
                 <button
                   onClick={() => void endCall()}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border py-3 text-sm font-semibold text-muted-foreground"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-ink/10 py-3 text-sm font-semibold text-muted-foreground"
                 >
                   <X className="size-4" /> Cancel
                 </button>
@@ -373,78 +455,129 @@ export default function SpeakPractice() {
             ) : (
               <button
                 onClick={() => void findPartner()}
-                className="mt-6 w-full rounded-2xl bg-primary py-4 font-display text-base font-bold text-primary-foreground shadow-lg transition active:scale-[0.98]"
+                className="mt-6 h-14 w-full rounded-2xl bg-coral font-display text-[16px] font-semibold text-white shadow-sm transition-opacity active:opacity-90"
               >
-                Find a partner
+                Start a free call
               </button>
             )}
 
             {error && (
-              <p className="mt-4 rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <p className="mt-4 rounded-2xl bg-coral/10 px-4 py-3 text-sm text-coral">
                 {error}
               </p>
             )}
             {notice && !error && (
-              <p className="mt-4 rounded-2xl bg-secondary px-4 py-3 text-sm text-secondary-foreground">
+              <p className="mt-4 rounded-2xl border border-ink/5 bg-white/85 px-4 py-3 text-sm text-muted-foreground shadow-sm">
                 {notice}
               </p>
             )}
 
-            <ul className="mt-6 space-y-2 text-sm text-muted-foreground">
-              <li>• Calls connect directly between the two phones.</li>
-              <li>• Keep it kind — introduce yourself and pick a topic.</li>
-              <li>• Leave any time; the next partner is one tap away.</li>
-            </ul>
-          </section>
+            {pastCalls.length > 0 && (
+              <section className="mt-7">
+                <h2 className="font-display text-[15px] font-semibold">Recent calls</h2>
+                <div className="mt-3 space-y-2">
+                  {pastCalls.map((call) => (
+                    <div
+                      key={call.at}
+                      className="flex items-center gap-3 rounded-xl border border-ink/5 bg-white/85 p-3 shadow-sm"
+                    >
+                      <span
+                        className={`${avatarColor(call.partner)} grid size-10 shrink-0 place-items-center rounded-full font-display text-base font-semibold`}
+                      >
+                        {call.partner.charAt(0).toUpperCase()}
+                      </span>
+                      <div className="flex-1 leading-tight">
+                        <p className="text-[14px] font-semibold">{call.partner}</p>
+                        <p className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                          <PhoneIncoming className="size-3.5 text-mint" />
+                          {formatWhen(call.at)} · {formatTimer(call.seconds)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section className="mt-7 rounded-2xl bg-brand p-5 text-white shadow-sm">
+              <p className="font-display text-[17px] font-semibold">Talk to the world</p>
+              <p className="mt-1 text-[13px] text-white/80">
+                Every call pairs you with a real person, directly phone-to-phone. Keep it kind
+                — introduce yourself and pick a topic.
+              </p>
+            </section>
+          </div>
         )}
 
         {inCall && match && (
-          <section className="mt-10 animate-rise flex flex-col items-center text-center">
-            <div className="relative grid size-32 place-items-center">
-              <span className="absolute inset-0 rounded-full bg-primary/25 animate-ring-pulse" />
-              <div className="grid size-28 place-items-center rounded-full bg-primary font-display text-4xl font-bold text-primary-foreground shadow-2xl">
-                {match.partner.charAt(0).toUpperCase()}
+          <div className="fixed inset-0 z-50 bg-mesh-dark text-white animate-rise">
+            <div className="mx-auto flex h-full max-w-[430px] flex-col items-center px-6 pt-16 pb-10">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">
+                {phase === "connecting" ? "Calling…" : "Connected · Free"}
+              </p>
+
+              <div className="relative mt-10">
+                {phase === "connecting" && (
+                  <>
+                    <span className="animate-ring-pulse absolute inset-0 rounded-full bg-brand/40" />
+                    <span className="animate-ring-pulse absolute inset-0 rounded-full bg-brand/25 [animation-delay:0.8s]" />
+                  </>
+                )}
+                <div className="relative grid size-28 place-items-center rounded-full bg-brand font-display text-5xl font-bold text-white shadow-2xl">
+                  {match.partner.charAt(0).toUpperCase()}
+                </div>
               </div>
-            </div>
 
-            <h2 className="mt-6 font-display text-2xl font-bold">{match.partner}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {phase === "connecting" ? "Connecting…" : formatDuration(seconds)}
-            </p>
+              <h2 className="mt-8 font-display text-3xl font-semibold tracking-tight">
+                {match.partner}
+              </h2>
+              <p className="mt-2 text-sm text-white/60">English practice partner</p>
+              <p className="mt-4 font-display text-xl tabular-nums text-white/90">
+                {phase === "live" ? formatTimer(seconds) : "—:—"}
+              </p>
 
-            <div className="mt-3 flex items-center gap-2 rounded-full bg-card/80 px-4 py-2 text-xs font-medium text-muted-foreground shadow">
-              <Volume2 className="size-4" />
-              {phase === "live" ? "Live voice call" : "Setting up audio"}
+              <div className="mt-auto flex w-full items-center justify-center gap-5">
+                <button
+                  onClick={toggleMute}
+                  aria-label={muted ? "Unmute" : "Mute"}
+                  className={`grid size-16 place-items-center rounded-full ring-1 ring-white/25 transition-colors ${
+                    muted ? "bg-white text-ink" : "bg-white/10 text-white"
+                  }`}
+                >
+                  {muted ? <MicOff className="size-6" /> : <Mic className="size-6" />}
+                </button>
+                <button
+                  onClick={() => void endCall("Call ended.")}
+                  aria-label="End call"
+                  className="grid size-20 place-items-center rounded-full bg-coral text-white shadow-[0_12px_36px_-8px_rgba(244,63,94,0.7)] transition-transform active:scale-95"
+                >
+                  <PhoneOff className="size-8" />
+                </button>
+                <button
+                  onClick={() => setSpeaker((s) => !s)}
+                  aria-label="Speaker"
+                  className={`grid size-16 place-items-center rounded-full ring-1 ring-white/25 transition-colors ${
+                    speaker ? "bg-mint text-white" : "bg-white/10 text-white"
+                  }`}
+                >
+                  <Volume2 className="size-6" />
+                </button>
+              </div>
+              <p className="mt-6 text-[11px] uppercase tracking-[0.16em] text-white/40">
+                via Call u · no minutes used
+              </p>
             </div>
-
-            <div className="mt-12 flex items-center gap-6">
-              <button
-                onClick={toggleMute}
-                className={`grid size-16 place-items-center rounded-full shadow-lg transition active:scale-95 ${
-                  muted
-                    ? "bg-foreground text-background"
-                    : "bg-card text-foreground"
-                }`}
-                aria-label={muted ? "Unmute" : "Mute"}
-              >
-                {muted ? <MicOff className="size-6" /> : <Mic className="size-6" />}
-              </button>
-              <button
-                onClick={() => void endCall("Call ended.")}
-                className="grid size-20 place-items-center rounded-full bg-destructive text-destructive-foreground shadow-xl transition active:scale-95"
-                aria-label="End call"
-              >
-                <PhoneOff className="size-7" />
-              </button>
-            </div>
-          </section>
+          </div>
         )}
 
         {phase === "ended" && (
-          <section className="mt-10 animate-rise rounded-4xl border border-border bg-card/80 p-6 text-center shadow-xl">
-            <h2 className="font-display text-xl font-bold">Call finished</h2>
+          <section className="mt-10 animate-rise rounded-2xl border border-ink/5 bg-white/85 p-6 text-center shadow-sm">
+            <span className="mx-auto grid size-12 place-items-center rounded-full bg-mint/15 text-mint">
+              <Phone className="size-5" />
+            </span>
+            <h2 className="mt-4 font-display text-xl font-semibold">Call finished</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              {notice ?? "Nice work."} You talked for {formatDuration(seconds)}.
+              {notice ?? "Nice work."} You talked for {formatTimer(seconds)}.
             </p>
             <button
               onClick={() => {
@@ -452,7 +585,7 @@ export default function SpeakPractice() {
                 setMatch(null);
                 setNotice(null);
               }}
-              className="mt-6 w-full rounded-2xl bg-primary py-4 font-display font-bold text-primary-foreground shadow-lg active:scale-[0.98]"
+              className="mt-6 h-14 w-full rounded-2xl bg-coral font-display text-[16px] font-semibold text-white shadow-sm transition-opacity active:opacity-90"
             >
               Practice again
             </button>
