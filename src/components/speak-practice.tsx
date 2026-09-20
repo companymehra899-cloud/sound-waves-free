@@ -27,12 +27,25 @@ type QueueResult = {
   room_id?: string;
   call_role?: "caller" | "callee";
   partner_nickname?: string;
+  partner_country?: string;
+  partner_age?: number | null;
+  partner_topic?: string;
 };
 
 type MatchInfo = {
   roomId: string;
   role: "caller" | "callee";
   partner: string;
+  partnerCountry?: string;
+  partnerAge?: number | null;
+  partnerTopic?: string;
+};
+
+type Profile = {
+  nickname: string;
+  country: string;
+  age: string;
+  topic: string;
 };
 
 type PastCall = {
@@ -96,7 +109,12 @@ function formatWhen(at: number) {
 }
 
 export default function SpeakPractice() {
-  const [nickname, setNickname] = useState("");
+  const [profile, setProfile] = useState<Profile>({
+    nickname: "",
+    country: "",
+    age: "",
+    topic: "",
+  });
   const [phase, setPhase] = useState<Phase>("idle");
   const [match, setMatch] = useState<MatchInfo | null>(null);
   const [muted, setMuted] = useState(false);
@@ -119,8 +137,18 @@ export default function SpeakPractice() {
   const secondsRef = useRef(0);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("callu_nickname");
-    if (saved) setNickname(saved);
+    try {
+      const saved = JSON.parse(
+        window.localStorage.getItem("callu_profile") ?? "null",
+      ) as Profile | null;
+      if (saved) setProfile(saved);
+      else {
+        const oldNick = window.localStorage.getItem("callu_nickname");
+        if (oldNick) setProfile((p) => ({ ...p, nickname: oldNick }));
+      }
+    } catch {
+      /* ignore */
+    }
     try {
       const history = JSON.parse(
         window.localStorage.getItem("callu_history") ?? "[]",
@@ -332,11 +360,21 @@ export default function SpeakPractice() {
     }
 
     setPhase("searching");
-    const nick = nickname.trim() || "Guest";
-    window.localStorage.setItem("callu_nickname", nick);
+    const nick = profile.nickname.trim() || "Guest";
+    const country = profile.country.trim();
+    const topic = profile.topic.trim();
+    const ageNum = parseInt(profile.age, 10);
+    const age = Number.isFinite(ageNum) && ageNum > 0 ? ageNum : null;
+    window.localStorage.setItem(
+      "callu_profile",
+      JSON.stringify({ ...profile, nickname: nick }),
+    );
 
     const { data, error: rpcError } = await supabase.rpc("join_call_queue", {
       p_nickname: nick,
+      p_country: country,
+      ...(age !== null ? { p_age: age } : {}),
+      p_topic: topic,
     });
 
     if (rpcError || !data) {
@@ -354,6 +392,9 @@ export default function SpeakPractice() {
         roomId: result.room_id!,
         role: result.call_role ?? "callee",
         partner: result.partner_nickname ?? "Partner",
+        partnerCountry: result.partner_country ?? "",
+        partnerAge: result.partner_age ?? null,
+        partnerTopic: result.partner_topic ?? "",
       });
       return;
     }
@@ -380,10 +421,13 @@ export default function SpeakPractice() {
           roomId: res.room_id!,
           role: res.call_role ?? "callee",
           partner: res.partner_nickname ?? "Partner",
+          partnerCountry: res.partner_country ?? "",
+          partnerAge: res.partner_age ?? null,
+          partnerTopic: res.partner_topic ?? "",
         });
       }
     }, 1500);
-  }, [cleanup, nickname, startWebRTC]);
+  }, [cleanup, profile, startWebRTC]);
 
   const toggleMute = () => {
     const tracks = localStreamRef.current?.getAudioTracks() ?? [];
@@ -428,15 +472,45 @@ export default function SpeakPractice() {
 
             <section className="mt-7">
               <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Your name
+                Your profile
               </label>
-              <input
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                placeholder="e.g. Rahul"
-                maxLength={24}
-                className="mt-2 w-full rounded-2xl border border-ink/5 bg-white/85 px-4 py-3 text-[15px] shadow-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-              />
+              <div className="mt-2 space-y-2">
+                <input
+                  value={profile.nickname}
+                  onChange={(e) => setProfile((p) => ({ ...p, nickname: e.target.value }))}
+                  placeholder="Name (e.g. Rahul)"
+                  maxLength={24}
+                  className="w-full rounded-2xl border border-ink/5 bg-white/85 px-4 py-3 text-[15px] shadow-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                />
+                <div className="flex gap-2">
+                  <input
+                    value={profile.country}
+                    onChange={(e) => setProfile((p) => ({ ...p, country: e.target.value }))}
+                    placeholder="Country"
+                    maxLength={32}
+                    className="w-full min-w-0 flex-1 rounded-2xl border border-ink/5 bg-white/85 px-4 py-3 text-[15px] shadow-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                  />
+                  <input
+                    value={profile.age}
+                    onChange={(e) =>
+                      setProfile((p) => ({
+                        ...p,
+                        age: e.target.value.replace(/\D/g, "").slice(0, 3),
+                      }))
+                    }
+                    placeholder="Age"
+                    inputMode="numeric"
+                    className="w-24 rounded-2xl border border-ink/5 bg-white/85 px-4 py-3 text-[15px] shadow-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                  />
+                </div>
+                <input
+                  value={profile.topic}
+                  onChange={(e) => setProfile((p) => ({ ...p, topic: e.target.value }))}
+                  placeholder="Topic you want to talk about (e.g. Travel)"
+                  maxLength={60}
+                  className="w-full rounded-2xl border border-ink/5 bg-white/85 px-4 py-3 text-[15px] shadow-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                />
+              </div>
             </section>
 
             {phase === "searching" ? (
@@ -531,7 +605,19 @@ export default function SpeakPractice() {
               <h2 className="mt-8 font-display text-3xl font-semibold tracking-tight">
                 {match.partner}
               </h2>
-              <p className="mt-2 text-sm text-white/60">English practice partner</p>
+              <p className="mt-2 text-sm text-white/60">
+                {[
+                  match.partnerCountry || null,
+                  match.partnerAge ? `${match.partnerAge} yrs` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "English practice partner"}
+              </p>
+              {match.partnerTopic && (
+                <p className="mt-3 rounded-full bg-white/10 px-4 py-1.5 text-[13px] font-medium text-white/85 ring-1 ring-white/20">
+                  Topic: {match.partnerTopic}
+                </p>
+              )}
               <p className="mt-4 font-display text-xl tabular-nums text-white/90">
                 {phase === "live" ? formatTimer(seconds) : "—:—"}
               </p>
