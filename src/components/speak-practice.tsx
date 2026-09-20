@@ -373,7 +373,7 @@ export default function SpeakPractice() {
     const { data, error: rpcError } = await supabase.rpc("join_call_queue", {
       p_nickname: nick,
       p_country: country,
-      p_age: age,
+      p_age: age ?? undefined,
       p_topic: topic,
     });
 
@@ -421,7 +421,7 @@ export default function SpeakPractice() {
         });
       }
     }, 1500);
-  }, [cleanup, nickname, startWebRTC]);
+  }, [cleanup, profile, startWebRTC]);
 
   const toggleMute = () => {
     const tracks = localStreamRef.current?.getAudioTracks() ?? [];
