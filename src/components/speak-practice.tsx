@@ -392,6 +392,9 @@ export default function SpeakPractice() {
         roomId: result.room_id!,
         role: result.call_role ?? "callee",
         partner: result.partner_nickname ?? "Partner",
+        partnerCountry: result.partner_country ?? "",
+        partnerAge: result.partner_age ?? null,
+        partnerTopic: result.partner_topic ?? "",
       });
       return;
     }
@@ -418,6 +421,9 @@ export default function SpeakPractice() {
           roomId: res.room_id!,
           role: res.call_role ?? "callee",
           partner: res.partner_nickname ?? "Partner",
+          partnerCountry: res.partner_country ?? "",
+          partnerAge: res.partner_age ?? null,
+          partnerTopic: res.partner_topic ?? "",
         });
       }
     }, 1500);
@@ -599,7 +605,19 @@ export default function SpeakPractice() {
               <h2 className="mt-8 font-display text-3xl font-semibold tracking-tight">
                 {match.partner}
               </h2>
-              <p className="mt-2 text-sm text-white/60">English practice partner</p>
+              <p className="mt-2 text-sm text-white/60">
+                {[
+                  match.partnerCountry || null,
+                  match.partnerAge ? `${match.partnerAge} yrs` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "English practice partner"}
+              </p>
+              {match.partnerTopic && (
+                <p className="mt-3 rounded-full bg-white/10 px-4 py-1.5 text-[13px] font-medium text-white/85 ring-1 ring-white/20">
+                  Topic: {match.partnerTopic}
+                </p>
+              )}
               <p className="mt-4 font-display text-xl tabular-nums text-white/90">
                 {phase === "live" ? formatTimer(seconds) : "—:—"}
               </p>
