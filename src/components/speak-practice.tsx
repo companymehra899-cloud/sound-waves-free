@@ -360,11 +360,21 @@ export default function SpeakPractice() {
     }
 
     setPhase("searching");
-    const nick = nickname.trim() || "Guest";
-    window.localStorage.setItem("callu_nickname", nick);
+    const nick = profile.nickname.trim() || "Guest";
+    const country = profile.country.trim();
+    const topic = profile.topic.trim();
+    const ageNum = parseInt(profile.age, 10);
+    const age = Number.isFinite(ageNum) && ageNum > 0 ? ageNum : null;
+    window.localStorage.setItem(
+      "callu_profile",
+      JSON.stringify({ ...profile, nickname: nick }),
+    );
 
     const { data, error: rpcError } = await supabase.rpc("join_call_queue", {
       p_nickname: nick,
+      p_country: country,
+      p_age: age,
+      p_topic: topic,
     });
 
     if (rpcError || !data) {
@@ -456,15 +466,45 @@ export default function SpeakPractice() {
 
             <section className="mt-7">
               <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Your name
+                Your profile
               </label>
-              <input
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                placeholder="e.g. Rahul"
-                maxLength={24}
-                className="mt-2 w-full rounded-2xl border border-ink/5 bg-white/85 px-4 py-3 text-[15px] shadow-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
-              />
+              <div className="mt-2 space-y-2">
+                <input
+                  value={profile.nickname}
+                  onChange={(e) => setProfile((p) => ({ ...p, nickname: e.target.value }))}
+                  placeholder="Name (e.g. Rahul)"
+                  maxLength={24}
+                  className="w-full rounded-2xl border border-ink/5 bg-white/85 px-4 py-3 text-[15px] shadow-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                />
+                <div className="flex gap-2">
+                  <input
+                    value={profile.country}
+                    onChange={(e) => setProfile((p) => ({ ...p, country: e.target.value }))}
+                    placeholder="Country"
+                    maxLength={32}
+                    className="w-full min-w-0 flex-1 rounded-2xl border border-ink/5 bg-white/85 px-4 py-3 text-[15px] shadow-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                  />
+                  <input
+                    value={profile.age}
+                    onChange={(e) =>
+                      setProfile((p) => ({
+                        ...p,
+                        age: e.target.value.replace(/\D/g, "").slice(0, 3),
+                      }))
+                    }
+                    placeholder="Age"
+                    inputMode="numeric"
+                    className="w-24 rounded-2xl border border-ink/5 bg-white/85 px-4 py-3 text-[15px] shadow-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                  />
+                </div>
+                <input
+                  value={profile.topic}
+                  onChange={(e) => setProfile((p) => ({ ...p, topic: e.target.value }))}
+                  placeholder="Topic you want to talk about (e.g. Travel)"
+                  maxLength={60}
+                  className="w-full rounded-2xl border border-ink/5 bg-white/85 px-4 py-3 text-[15px] shadow-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                />
+              </div>
             </section>
 
             {phase === "searching" ? (
