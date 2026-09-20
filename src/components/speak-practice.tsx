@@ -373,7 +373,7 @@ export default function SpeakPractice() {
     const { data, error: rpcError } = await supabase.rpc("join_call_queue", {
       p_nickname: nick,
       p_country: country,
-      p_age: age ?? undefined,
+      ...(age !== null ? { p_age: age } : {}),
       p_topic: topic,
     });
 
