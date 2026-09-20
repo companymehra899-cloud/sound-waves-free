@@ -109,7 +109,12 @@ function formatWhen(at: number) {
 }
 
 export default function SpeakPractice() {
-  const [nickname, setNickname] = useState("");
+  const [profile, setProfile] = useState<Profile>({
+    nickname: "",
+    country: "",
+    age: "",
+    topic: "",
+  });
   const [phase, setPhase] = useState<Phase>("idle");
   const [match, setMatch] = useState<MatchInfo | null>(null);
   const [muted, setMuted] = useState(false);
@@ -132,8 +137,18 @@ export default function SpeakPractice() {
   const secondsRef = useRef(0);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("callu_nickname");
-    if (saved) setNickname(saved);
+    try {
+      const saved = JSON.parse(
+        window.localStorage.getItem("callu_profile") ?? "null",
+      ) as Profile | null;
+      if (saved) setProfile(saved);
+      else {
+        const oldNick = window.localStorage.getItem("callu_nickname");
+        if (oldNick) setProfile((p) => ({ ...p, nickname: oldNick }));
+      }
+    } catch {
+      /* ignore */
+    }
     try {
       const history = JSON.parse(
         window.localStorage.getItem("callu_history") ?? "[]",
