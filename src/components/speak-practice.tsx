@@ -27,12 +27,25 @@ type QueueResult = {
   room_id?: string;
   call_role?: "caller" | "callee";
   partner_nickname?: string;
+  partner_country?: string;
+  partner_age?: number | null;
+  partner_topic?: string;
 };
 
 type MatchInfo = {
   roomId: string;
   role: "caller" | "callee";
   partner: string;
+  partnerCountry?: string;
+  partnerAge?: number | null;
+  partnerTopic?: string;
+};
+
+type Profile = {
+  nickname: string;
+  country: string;
+  age: string;
+  topic: string;
 };
 
 type PastCall = {
