@@ -16,28 +16,46 @@ export type Database = {
     Tables: {
       call_queue: {
         Row: {
+          age: number | null
           call_role: string | null
+          country: string
           created_at: string
           id: string
           nickname: string
+          partner_age: number | null
+          partner_country: string
           partner_nickname: string | null
+          partner_topic: string
           room_id: string | null
+          topic: string
         }
         Insert: {
+          age?: number | null
           call_role?: string | null
+          country?: string
           created_at?: string
           id?: string
           nickname?: string
+          partner_age?: number | null
+          partner_country?: string
           partner_nickname?: string | null
+          partner_topic?: string
           room_id?: string | null
+          topic?: string
         }
         Update: {
+          age?: number | null
           call_role?: string | null
+          country?: string
           created_at?: string
           id?: string
           nickname?: string
+          partner_age?: number | null
+          partner_country?: string
           partner_nickname?: string | null
+          partner_topic?: string
           room_id?: string | null
+          topic?: string
         }
         Relationships: []
       }
@@ -47,7 +65,15 @@ export type Database = {
     }
     Functions: {
       check_call_match: { Args: { p_id: string }; Returns: Json }
-      join_call_queue: { Args: { p_nickname: string }; Returns: Json }
+      join_call_queue: {
+        Args: {
+          p_age?: number
+          p_country?: string
+          p_nickname: string
+          p_topic?: string
+        }
+        Returns: Json
+      }
       leave_call_queue: { Args: { p_id: string }; Returns: undefined }
     }
     Enums: {
